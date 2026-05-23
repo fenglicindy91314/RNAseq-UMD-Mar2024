@@ -1,4 +1,7 @@
+
 # Reusable RNA-seq Preprocessing Pipeline
+
+This is an updated RNA-seq preprocessing pipeline for organizing and rerunning the alignment, BAM processing, and read-counting steps from the 2024 Rose Li RNA-seq work. This project supports one of the NFSC projects from Ma's Lab in 2024.
 
 This folder contains reusable Bash scripts for preprocessing paired-end mouse RNA-seq data. The scripts are based on the Word documents you provided for the Rose Li RNA-seq project.
 
