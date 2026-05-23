@@ -1,26 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Directory containing SAM files.
-sam_dir="/data/home/fengl/Roseli/RNAseq_files/LIR_02_SOL"
+###############################################################################
+# Convert existing SAM files to sorted/indexed BAM files.
+#
+# This is a small helper for the counting workflow from the original notes. For
+# the full reusable pipeline, use 02_align_sort_index.sh or run_all_rnaseq.sh.
+###############################################################################
 
-# Directory to store sorted BAM files.
-bam_dir="/data/home/fengl/Roseli/RNAseq_files/counts/sorted_bams2"
+source "$(dirname "$0")/rnaseq_config.sh"
 
-mkdir -p "$bam_dir"
+mkdir -p "$BAM_DIR"
 
-# Convert each *2.sam file to a sorted BAM file, then index it.
-for sam_file in "$sam_dir"/*2.sam; do
+for sam_file in "$ALIGN_DIR"/*"$SAM_SUFFIX"; do
     if [[ ! -e "$sam_file" ]]; then
-        echo "No *2.sam files found in: $sam_dir" >&2
+        echo "No SAM files found in $ALIGN_DIR with suffix $SAM_SUFFIX" >&2
         exit 1
     fi
 
     base_name="$(basename "$sam_file" .sam)"
-    sorted_bam="$bam_dir/${base_name}.sorted.bam"
+    sorted_bam="$BAM_DIR/${base_name}.sorted.bam"
 
     echo "Converting and sorting: $sam_file"
-    samtools view -bS "$sam_file" | samtools sort -o "$sorted_bam"
+    samtools view -@ "$THREADS" -bS "$sam_file" | \
+        samtools sort -@ "$THREADS" -o "$sorted_bam"
 
     echo "Indexing: $sorted_bam"
     samtools index "$sorted_bam"

@@ -22,8 +22,8 @@ Those are Linux server paths, so the scripts should be run on the server or clus
 | `02_align_sort_index.sh` | Aligns trimmed paired-end FASTQ files with HISAT2, creates SAM files, converts them to sorted BAM files, and indexes the BAM files. |
 | `03_featurecounts.sh` | Counts reads per gene with featureCounts. |
 | `run_all_rnaseq.sh` | Runs QC/trimming, alignment/sorting/indexing, and featureCounts in order. |
-| `convert_and_index_bams.sh` | Older small helper for converting existing SAM files to sorted BAM files. |
-| `run_pipeline.sh` | Older small helper that launches the SAM-to-BAM script plus a separate featureCounts script. |
+| `convert_and_index_bams.sh` | Helper for converting existing SAM files to sorted BAM files using the paths in `rnaseq_config.sh`. |
+| `run_counting_from_sam.sh` | Helper that runs `convert_and_index_bams.sh`, then `03_featurecounts.sh`. Use this when alignment is already done and you want to go from SAM files to counts. |
 
 ## Pipeline Steps
 
@@ -185,6 +185,21 @@ Read counting:
 ```bash
 ./03_featurecounts.sh
 ```
+
+If you are following the older notes and already have SAM files, you can run:
+
+```bash
+./convert_and_index_bams.sh
+./03_featurecounts.sh
+```
+
+or the combined helper:
+
+```bash
+./run_counting_from_sam.sh
+```
+
+The old notes used the name `run_featurecounts2.sh`, but this cleaned-up version uses only `03_featurecounts.sh`.
 
 ## featureCounts Settings
 
