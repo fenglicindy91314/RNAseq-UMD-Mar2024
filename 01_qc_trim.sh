@@ -8,7 +8,12 @@ set -euo pipefail
 # raw FASTQ files with fastp and then runs FastQC on trimmed reads.
 ###############################################################################
 
-source "$(dirname "$0")/rnaseq_config.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/rnaseq_config.sh"
+
+# Make unmatched file patterns expand to an empty list instead of a literal
+# string like "*.fastq.gz".
+shopt -s nullglob
 
 check_command() {
     local cmd="$1"
@@ -25,25 +30,41 @@ sample_from_raw_r1() {
     echo "${file_name%"$RAW_R1_SUFFIX"}"
 }
 
-check_command fastqc
 mkdir -p "$QC_DIR/raw_fastqc" "$QC_DIR/trimmed_fastqc" "$TRIMMED_DIR" "$LOG_DIR"
 
-echo "Running FastQC on raw FASTQ files..."
-fastqc -t "$THREADS" -o "$QC_DIR/raw_fastqc" "$RAW_DIR"/*.fastq.gz
+raw_fastqs=("$RAW_DIR"/*.fastq.gz)
+raw_r1_files=("$RAW_DIR"/*"$RAW_R1_SUFFIX")
+
+check_command fastqc
+
+# Raw FastQC is useful when raw data are available. If this script is being
+# used only with already-trimmed files, allow raw FastQC to be skipped.
+if (( ${#raw_fastqs[@]} > 0 )); then
+    echo "Running FastQC on raw FASTQ files..."
+    fastqc -t "$THREADS" -o "$QC_DIR/raw_fastqc" "${raw_fastqs[@]}"
+elif [[ "$TRIM_READS" == "true" ]]; then
+    echo "No raw FASTQ files found in $RAW_DIR, but TRIM_READS=true." >&2
+    exit 1
+else
+    echo "No raw FASTQ files found in $RAW_DIR; skipping raw FastQC."
+fi
 
 if [[ "$TRIM_READS" == "true" ]]; then
     check_command fastp
 
-    echo "Trimming paired-end reads with fastp..."
-    for read1 in "$RAW_DIR"/*"$RAW_R1_SUFFIX"; do
-        if [[ ! -e "$read1" ]]; then
-            echo "No raw R1 files found in $RAW_DIR with suffix $RAW_R1_SUFFIX" >&2
-            exit 1
-        fi
+    # Trimming requires paired raw files. Stop before doing any work if the
+    # configured R1 suffix does not match the files in RAW_DIR.
+    if (( ${#raw_r1_files[@]} == 0 )); then
+        echo "No raw R1 files found in $RAW_DIR with suffix $RAW_R1_SUFFIX" >&2
+        exit 1
+    fi
 
+    echo "Trimming paired-end reads with fastp..."
+    for read1 in "${raw_r1_files[@]}"; do
         sample="$(sample_from_raw_r1 "$read1")"
         read2="$RAW_DIR/${sample}${RAW_R2_SUFFIX}"
 
+        # Each R1 file must have a matching R2 file with the same sample prefix.
         if [[ ! -e "$read2" ]]; then
             echo "Missing raw R2 file for sample $sample: $read2" >&2
             exit 1
@@ -63,8 +84,16 @@ else
     echo "TRIM_READS=false, skipping trimming."
 fi
 
+trimmed_fastqs=("$TRIMMED_DIR"/*"$TRIMMED_R1_SUFFIX" "$TRIMMED_DIR"/*"$TRIMMED_R2_SUFFIX")
+# Alignment depends on trimmed files, so fail here if trimming did not create
+# them or if TRIM_READS=false points to the wrong folder/suffix.
+if (( ${#trimmed_fastqs[@]} == 0 )); then
+    echo "No trimmed FASTQ files found in $TRIMMED_DIR." >&2
+    exit 1
+fi
+
 echo "Running FastQC on trimmed FASTQ files..."
-fastqc -t "$THREADS" -o "$QC_DIR/trimmed_fastqc" "$TRIMMED_DIR"/*"$TRIMMED_R1_SUFFIX" "$TRIMMED_DIR"/*"$TRIMMED_R2_SUFFIX"
+fastqc -t "$THREADS" -o "$QC_DIR/trimmed_fastqc" "${trimmed_fastqs[@]}"
 
 if command -v multiqc >/dev/null 2>&1; then
     echo "Running MultiQC..."

@@ -8,7 +8,8 @@ set -euo pipefail
 # installed on the server.
 ###############################################################################
 
-source "$(dirname "$0")/rnaseq_config.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/rnaseq_config.sh"
 
 MM10_DIR="/data/home/lfeng1/mm10"
 GTF_DIR="/data/home/lfeng1/GTF"

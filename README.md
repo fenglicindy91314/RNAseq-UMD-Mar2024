@@ -22,8 +22,11 @@ Those are Linux server paths, so the scripts should be run on the server or clus
 | `02_align_sort_index.sh` | Aligns trimmed paired-end FASTQ files with HISAT2, creates SAM files, converts them to sorted BAM files, and indexes the BAM files. |
 | `03_featurecounts.sh` | Counts reads per gene with featureCounts. |
 | `run_all_rnaseq.sh` | Runs QC/trimming, alignment/sorting/indexing, and featureCounts in order. |
+| `run_all_rnaseq_nohup.sh` | Starts the full RNA-seq pipeline in the background and writes a nohup log. |
 | `convert_and_index_bams.sh` | Helper for converting existing SAM files to sorted BAM files using the paths in `rnaseq_config.sh`. |
 | `run_counting_from_sam.sh` | Helper that runs `convert_and_index_bams.sh`, then `03_featurecounts.sh`. Use this when alignment is already done and you want to go from SAM files to counts. |
+| `run_counting_from_sam_nohup.sh` | Starts the SAM-to-counts workflow in the background and writes a nohup log. |
+| `run_featurecounts_nohup.sh` | Starts only `03_featurecounts.sh` in the background. Use this when sorted BAM files already exist. |
 
 ## Pipeline Steps
 
@@ -157,13 +160,13 @@ Run everything:
 To keep the job running after you disconnect:
 
 ```bash
-nohup ./run_all_rnaseq.sh > rnaseq_pipeline.log 2>&1 &
+./run_all_rnaseq_nohup.sh
 ```
 
 Check progress:
 
 ```bash
-tail -f rnaseq_pipeline.log
+tail -f rnaseq_pipeline.nohup.log
 ```
 
 ## Run One Step At A Time
@@ -200,6 +203,36 @@ or the combined helper:
 ```
 
 The old notes used the name `run_featurecounts2.sh`, but this cleaned-up version uses only `03_featurecounts.sh`.
+
+## Background Runs With nohup
+
+For long jobs, use the provided `nohup` launcher scripts.
+
+Full pipeline:
+
+```bash
+./run_all_rnaseq_nohup.sh
+```
+
+Start from existing SAM files and run through counts:
+
+```bash
+./run_counting_from_sam_nohup.sh
+```
+
+Run only featureCounts when sorted BAM files already exist:
+
+```bash
+./run_featurecounts_nohup.sh
+```
+
+Each launcher prints a process ID and a log file path. To watch the log:
+
+```bash
+tail -f rnaseq_pipeline.nohup.log
+tail -f counting_from_sam.nohup.log
+tail -f featurecounts.nohup.log
+```
 
 ## featureCounts Settings
 

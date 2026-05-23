@@ -8,7 +8,12 @@ set -euo pipefail
 # original project convention, then converts each SAM to sorted/indexed BAM.
 ###############################################################################
 
-source "$(dirname "$0")/rnaseq_config.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/rnaseq_config.sh"
+
+# Make unmatched file patterns expand to an empty list instead of a literal
+# string like "*.sam".
+shopt -s nullglob
 
 check_command() {
     local cmd="$1"
@@ -30,17 +35,27 @@ check_command samtools
 
 mkdir -p "$ALIGN_DIR" "$BAM_DIR" "$LOG_DIR"
 
-echo "Aligning trimmed reads with HISAT2..."
-for read1 in "$TRIMMED_DIR"/*"$TRIMMED_R1_SUFFIX"; do
-    if [[ ! -e "$read1" ]]; then
-        echo "No trimmed R1 files found in $TRIMMED_DIR with suffix $TRIMMED_R1_SUFFIX" >&2
-        exit 1
-    fi
+# HISAT2 expects an index prefix, such as ".../genome"; the actual files end in
+# .ht2 or .ht2l. This catches a wrong path before alignment starts.
+if ! compgen -G "${HISAT2_INDEX}*.ht2" >/dev/null && ! compgen -G "${HISAT2_INDEX}*.ht2l" >/dev/null; then
+    echo "No HISAT2 index files found for prefix: $HISAT2_INDEX" >&2
+    exit 1
+fi
 
+trimmed_r1_files=("$TRIMMED_DIR"/*"$TRIMMED_R1_SUFFIX")
+# Stop early if the configured trimmed FASTQ suffix does not match the files.
+if (( ${#trimmed_r1_files[@]} == 0 )); then
+    echo "No trimmed R1 files found in $TRIMMED_DIR with suffix $TRIMMED_R1_SUFFIX" >&2
+    exit 1
+fi
+
+echo "Aligning trimmed reads with HISAT2..."
+for read1 in "${trimmed_r1_files[@]}"; do
     sample="$(sample_from_trimmed_r1 "$read1")"
     read2="$TRIMMED_DIR/${sample}${TRIMMED_R2_SUFFIX}"
     sam_file="$ALIGN_DIR/${sample}${SAM_SUFFIX}"
 
+    # HISAT2 needs both mates for paired-end alignment.
     if [[ ! -e "$read2" ]]; then
         echo "Missing trimmed R2 file for sample $sample: $read2" >&2
         exit 1
@@ -56,13 +71,16 @@ for read1 in "$TRIMMED_DIR"/*"$TRIMMED_R1_SUFFIX"; do
         2> "$LOG_DIR/${sample}_hisat2.log"
 done
 
-echo "Converting SAM files to sorted BAM files and indexing..."
-for sam_file in "$ALIGN_DIR"/*"$SAM_SUFFIX"; do
-    if [[ ! -e "$sam_file" ]]; then
-        echo "No SAM files found in $ALIGN_DIR with suffix $SAM_SUFFIX" >&2
-        exit 1
-    fi
+sam_files=("$ALIGN_DIR"/*"$SAM_SUFFIX")
+# If HISAT2 failed or wrote files with a different suffix, do not continue into
+# samtools with an empty input set.
+if (( ${#sam_files[@]} == 0 )); then
+    echo "No SAM files found in $ALIGN_DIR with suffix $SAM_SUFFIX" >&2
+    exit 1
+fi
 
+echo "Converting SAM files to sorted BAM files and indexing..."
+for sam_file in "${sam_files[@]}"; do
     base_name="$(basename "$sam_file" .sam)"
     sorted_bam="$BAM_DIR/${base_name}.sorted.bam"
 

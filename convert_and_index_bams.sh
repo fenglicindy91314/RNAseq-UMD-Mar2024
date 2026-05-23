@@ -8,16 +8,25 @@ set -euo pipefail
 # the full reusable pipeline, use 02_align_sort_index.sh or run_all_rnaseq.sh.
 ###############################################################################
 
-source "$(dirname "$0")/rnaseq_config.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/rnaseq_config.sh"
+
+shopt -s nullglob
 
 mkdir -p "$BAM_DIR"
 
-for sam_file in "$ALIGN_DIR"/*"$SAM_SUFFIX"; do
-    if [[ ! -e "$sam_file" ]]; then
-        echo "No SAM files found in $ALIGN_DIR with suffix $SAM_SUFFIX" >&2
-        exit 1
-    fi
+if ! command -v samtools >/dev/null 2>&1; then
+    echo "Error: required command not found: samtools" >&2
+    exit 1
+fi
 
+sam_files=("$ALIGN_DIR"/*"$SAM_SUFFIX")
+if (( ${#sam_files[@]} == 0 )); then
+    echo "No SAM files found in $ALIGN_DIR with suffix $SAM_SUFFIX" >&2
+    exit 1
+fi
+
+for sam_file in "${sam_files[@]}"; do
     base_name="$(basename "$sam_file" .sam)"
     sorted_bam="$BAM_DIR/${base_name}.sorted.bam"
 
